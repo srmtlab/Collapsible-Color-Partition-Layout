@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>Collapsible Color Partition Layout</title>
+    <script src="d3.min.js"></script>
+    <style>
+        body{
+            margin: 0;
+            padding: 0;
+            position: relative;
+        }
+
+        #content{
+            margin:  0;
+            padding: 0;
+        }
+
+        svg{
+            display: block;
+            background-color: white;
+            margin: 5px;
+            width: calc(100% - 10px);
+        }
+    </style>
+</head>
+
+<body>
+
+<!-- #contents start -->
+<div id="content">
+    <svg xmlns="http://www.w3.org/2000/svg"></svg>
+</div>
+<!-- #contents end -->
+
+<script>
+    let g, root;
+    let svg_width, svg_height;
+    let scale = 5;
+    let max_depth = 0,init=true;
+
+    let data = {
+        "name": "blue",
+        "outline": "#3498DB",
+        "back": "#d9f3fd",
+        "children": [
+            {
+                "name": "blue",
+                "outline": "#3498DB",
+                "back": "#d9f3fd",
+                "children": []
+            },
+            {
+                "name": "yellow",
+                "outline": "#ffa710",
+                "back": "#ffffcc",
+                "children": [
+                    {
+                        "name": "pink",
+                        "outline": "#bd59ff",
+                        "back": "#ebccff",
+                        "children": []
+                    },
+                    {
+                        "name": "green",
+                        "outline": "#3ad587",
+                        "back": "#ccffcc",
+                        "children": [
+                            {
+                                "name": "blue",
+                                "outline": "#3498DB",
+                                "back": "#d9f3fd",
+                                "children": []
+                            },
+                            {
+                                "name": "pink",
+                                "outline": "#bd59ff",
+                                "back": "#ebccff",
+                                "children": []
+                            },
+                        ]
+                    },
+                ]
+            },
+            {
+                "name": "pink",
+                "outline": "#bd59ff",
+                "back": "#ebccff",
+                "children": [
+                    {
+                        "name": "green",
+                        "outline": "#3ad587",
+                        "back": "#ccffcc",
+                        "children": []
+                    },
+                    {
+                        "name": "blue",
+                        "outline": "#3498DB",
+                        "back": "#d9f3fd",
+                        "children": []
+                    },
+                ]
+            },
+        ]
+    };
+
+    window.addEventListener("resize", resize_svg);
+    window.onload = function () {
+        resize_svg();
+        load_data();
+    };
+
+    function resize_svg() {
+        let window_height = window.innerHeight;
+
+        let svg =　document.querySelector("svg");
+        svg.style.height = ( window_height - 10 ) + "px";
+
+        svg_width = svg.clientWidth;
+        svg_height = svg.clientHeight;
+    }
+
+    let zoom = function() {
+        g.attr("transform", d3.event.transform);
+        scale = d3.event.transform.k;
+    };
+
+
+    function load_data() {
+        // this function gets conversation data from server
+
+        //Constructs a root node from the hierarchical data "data"
+
+        root = d3.hierarchy(data);
+        g = d3.select("svg").append("g");
+
+        d3.select("svg")
+            .call(
+                d3.zoom()
+                    .scaleExtent([1 / 4, 12])
+                    .on("zoom", zoom)
+            )
+            .on("dblclick.zoom", null);
+
+        update(root);
+    }
+
+    function update(source) {
+        let duration = 500;
+        let square_height = 150;
+        let square_width = 350;
+        let id = 1;
+
+        let current_max_depth = d3.max(root.leaves(),function (d) {return d.depth;});
+        if(current_max_depth > max_depth){
+            max_depth = current_max_depth
+        }
+
+        if(init){
+            root.count()
+                .sort(function(a, b) { return b.value - a.value; });
+        }else {
+            root.count();
+        }
+
+        let partition = d3.partition()
+            .size([root.value * square_height, (max_depth + 1) * square_width ])
+            .padding(30);
+
+        partition(root);
+
+
+        let node = g.selectAll('.node')
+            .data(root.descendants(),
+                function(d) {
+                    return d.id || (d.id = id++);
+                }
+            );
+
+        let nodeEnter = node
+            .enter()
+            .append("g")
+            .attr("class", "node")
+            .attr("transform", function(d) {
+                return "translate(" + source.y0 + "," + d.x0 + ")";
+            });
+
+        nodeEnter.append("rect")
+            .style("opacity", 1e-6)
+            .on("click", function (d) {
+                toggle(d);
+                update(d);
+            });
+
+        nodeEnter.append("text")
+            .attr("text-anchor", "start")
+            .attr("x", 5)
+            .attr("dy", 50)
+            .attr("font-size", "150%")
+            .attr("font-weight", "bold")
+            .style("fill-opacity", 1e-6);
+
+        let nodeUpdate = nodeEnter.merge(node);
+
+        nodeUpdate.transition()
+            .duration(duration)
+            .attr("transform", function (d) {
+                return "translate(" + d.y0 + "," + d.x0 + ")";
+            });
+
+
+        nodeUpdate.select("rect")
+            .style("width", function(d) {
+                return d.y1 - d.y0;
+            })
+            .style("height", function(d) {
+                return d.x1 - d.x0;
+            })
+            .style("rx", 10)
+            .style("fill","white")
+            .style("stroke-width", 5)
+            .style("stroke", function(d) {
+                return d.data.outline;
+            })
+            .style("opacity", 1)
+            .style("fill",function (d) {
+                if(d.data.children.length !== 0 && d.children === undefined){
+                    return d.data.back;
+                }else{
+                    return "#FFFFFF"
+                }
+            });
+
+        nodeUpdate.select("text")
+            .style("fill-opacity", 1)
+            .text(function(d) { return d.data.name; });
+
+        let nodeExit;
+
+        nodeExit = node
+            .exit()
+            .transition()
+            .duration(duration)
+            .attr("transform", function (d) {
+                return "translate(" + source.y0 + "," + source.x0 + ")";
+            })
+            .remove();
+
+        nodeExit.select("rect")
+            .style("opacity", 1e-6);
+
+        nodeExit.select("text")
+            .style("fill-opacity", 1e-6);
+
+        init = false;
+    }
+
+    function toggle(d) {
+        if(d.children) {
+            d._children = d.children;
+            d.children = undefined;
+        } else {
+            d.children = d._children;
+            d._children = undefined;
+        }
+    }
+</script>
+</body>
+</html>
