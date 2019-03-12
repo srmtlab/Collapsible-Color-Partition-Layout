@@ -4,6 +4,10 @@
 
 This is a demo code for creating Collapsible Color Partition Layout using D3.js
 
+# Getting Started
+### Online demo
+- [https://srmtlab.github.io/Collapsible-Color-Partition-Layout/](https://srmtlab.github.io/Collapsible-Color-Partition-Layout/)
+
 # Feature
 - By clicking on the desired node, You can expand and collapse nodes.
 - Zooming is performed by scrolling the mouse-wheel.
